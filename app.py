@@ -16,7 +16,7 @@ def connectBD():
     db = mysql.connector.connect(
         host = "localhost",
         user = "root",
-        passwd = "claumestra",
+        passwd = "",
         database = "users"
     )
     return db
@@ -28,50 +28,59 @@ def initBD():
     
     # cursor.execute("DROP TABLE IF EXISTS users;")
     # Operación de creación de la tabla users (si no existe en BD)
-    query="CREATE TABLE IF NOT EXISTS users(\
+    query = "CREATE TABLE IF NOT EXISTS users(\
             user varchar(30) primary key,\
             password varchar(30),\
             name varchar(30), \
             surname1 varchar(30), \
             surname2 varchar(30), \
             age integer, \
+            salary float, \
             genre enum('H','D','NS/NC')); "
     cursor.execute(query)
             
     # Operación de inicialización de la tabla users (si está vacía)
-    query="SELECT count(*) FROM users;"
+    query = "SELECT count(*) FROM users;"
     cursor.execute(query)
     count = cursor.fetchall()[0][0]
-    if(count == 0):
+    if (count == 0):
         query = "INSERT INTO users \
-            VALUES('user01','admin','Ramón','Sigüenza','López',35,'H');"
+            VALUES('user01','admin','Ramón','Sigüenza','López',35, 50000.00,'H');"
         cursor.execute(query)
 
     bd.commit()
     bd.close()
     return
 
-# checkUser: comprueba si el par usuario-contraseña existe en la BD
-def checkUser(user,password):
-    bd=connectBD()
-    cursor=bd.cursor()
+def checkUser(user, password):
+    bd = connectBD()
+    cursor = bd.cursor()
 
-    query=f"SELECT user,name,surname1,surname2,age,genre FROM users WHERE user='{user}'\
-            AND password='{password}'"
-    print(query)
-    cursor.execute(query)
+    query = "SELECT user, name, surname1, surname2, age, genre FROM users WHERE user = %s AND password = %s"
+    cursor.execute(query, (user, password))  # Providing user and password as parameters
     userData = cursor.fetchall()
     bd.close()
-    
-    if userData == []:
+
+    if not userData:
         return False
     else:
         return userData[0]
 
-# cresteUser: crea un nuevo usuario en la BD
-def createUser(user,password,name,surname1,surname2,age,genre):
-    
+def createUser(user, password, name, surname1, surname2, age, salary):
+    bd = connectBD()
+    cursor = bd.cursor()
+
+    query = "INSERT INTO users (user, password, name, surname1, surname2, age, salary) VALUES (%s, %s, %s, %s, %s, %s, %s)"
+    values = (user, password, name, surname1, surname2, age, salary)
+    cursor.execute(query, values)
+
+    bd.commit()
+    bd.close()
     return
+
+
+
+
 
 # Secuencia principal: configuración de la aplicación web ##########################################
 # Instanciación de la aplicación web Flask
@@ -89,20 +98,44 @@ def login():
 
 @app.route("/signin")
 def signin():
-    return "SIGN IN PAGE"
+    return render_template("signin.html")
 
-@app.route("/results",methods=('GET', 'POST'))
-def results():
-    if request.method == ('POST'):
+@app.route("/newUser", methods=['POST'])
+def newUser():
+    if request.method == 'POST':
         formData = request.form
-        user=formData['usuario']
-        password=formData['contrasena']
-        userData = checkUser(user,password)
+        username = formData['username']
+        password = formData['password']
+        name = formData['name']
+        surname1 = formData['surname1']
+        surname2 = formData['surname2']
+        age = int(formData['age']) 
+        salary = float(formData['salary']) 
+        print(formData)
+        
+        
+        createUser(username, password, name, surname1, surname2, age, salary)
+        
+        return "User created successfully"
+
+
+
+
+@app.route("/results", methods=('GET', 'POST'))
+def results():
+    if request.method == 'POST':
+        formData = request.form
+        user = formData['usuario']
+        password = formData['contrasena']
+        userData = checkUser(user, password)
 
         if userData == False:
-            return render_template("results.html",login=False)
+            return render_template("results.html", login=False)
         else:
-            return render_template("results.html",login=True,userData=userData)
+            print("userData:", userData)  # Add this debugging statement
+            return render_template("results.html", login=True, userData=userData)
+
+
         
 # Configuración y arranque de la aplicación web
 app.config['TEMPLATES_AUTO_RELOAD'] = True
